@@ -62,3 +62,61 @@ metadata:
 라벨은 k8s에서 객체 식별 및 선택적 그룹화를 위하여 사용.
 
 애노테이션은 자동화 도구 및 클라이언트 라이브러리에서 사용할 수 있는 메타 데이터 저장용도로 사용.
+
+
+서비스 객체
+
+Pod에서 실행되는 Application을 외부에서 접근 가능한 상태로 만드는 추상적인 네트워크 서비스.
+
+Kubernetes를 사용하면 익숙하지 않은 서비스 검색 메커니즘을 사용하기 위해 응용 프로그램을 수정할 필요가 없으며
+
+Kubernetes는 포드에 고유 한 IP 주소와 포드 세트에 대한 단일 DNS 이름을 제공하고 이들간에 로드 밸런싱을 실행.
+
+
+
+
+
+
+
+Service 생성 방법
+
+kubectl 이용
+
+kubectl run alpha-prod --image=alpha-prod --replicas=3 --port=8080 --labels="ver=2,app=alpha,env=prod"
+kubectl expose deployment alpha-prod
+kubectl run alpha-prod --image=beta-prod --replicas=2 --port=8080 --labels="ver=2,app=beta,env=prod"
+kubectl expose deployment beta-prod
+템플릿 이용
+
+kind: Service
+apiVersion: v1
+metadata:
+  name: my-service
+spec:
+  type: ClusterIP
+  clusterIP: 10.0.10.10
+  selector:
+    app: MyApp
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 9376
+
+
+서비스 종류
+
+ClusterIP
+기본 서비스 타입이며 K8S 클러스터 내부에서 사용 가능.
+클러스터 내부 Node 및 Pod에서 ClusterIP를 이용한 통신 가능.
+NodePort
+각 노드의 Port를 할당하는 방식. 
+Node1:8080
+Node2:8082
+적용하기 가장 간편함,
+노드의 Port를 사용하기 때문에 외부에서도 접근 가능
+LoadBalancer
+클라우드 서비스를 이용하는 상황에서 적용 가능
+Pod을 클라우드에서 제공하는 LoadBalancer와 연결하여 외부에서 접근이 가능하도록 설정함.
+ExternalName
+Service를 externalName의 값이랑 매칭
+클러스터 내부에서 외부로 접근할 때 주로 사용.
