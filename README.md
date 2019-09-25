@@ -206,3 +206,128 @@ userspace모드에서는 포드 하나로의 요청이 실패하면 자동으로
 요약
 
 서비스 객체를 사용하여 서비스를 서로 연결 하고 클러스터 외부로 서비스를 제공 할 수 있다.
+
+Replica가 필요한 이유
+
+중복성 : 여러 인스턴스가 동작하는 환경에서의 내고장성.
+확장성 : 여러 인스턴스가 동작하는 환경에서 더 많은 요청 처리 가능.
+샤딩 : 각기 다른 보제를 병렬로 연산 처리 가능.
+
+
+레플리카세트는 pod이 정확한 종류와 개수로 동작하는지 관리하는 관리자 역할을 한다.
+
+레플리카 세트는 pod의 복제 집합을 쉽게 생성 및 관리 하므로 일반적인 애플리케이션 배포 패턴을 서술, 인프라 수준에서 정의된 Replica Count 유지
+
+장애 상황(노드, 네트워크분리) 발생시 자동으로 다시 스케줄링 실행.
+
+
+
+조정루프
+
+조정루프의 핵심은 기대 상태와 관찰 또는 현재 상태이다.
+
+기대 상태는 최종적으로 되고싶은 상태.
+
+현재 상태는 현재 시스템에서 관찰되는 상태.
+
+조정루프는 현재 상태를 관찰하며 관찰된 상태를 기대 상태로 맞추기 위하여 끊임없이 동작한다.
+
+
+
+Pod과 RS의 관계
+
+K8S의 핵심 개념은 모듈화와 다른 객체들과 교환 및 교체가 쉽다는 것이다. 이에 따라 RS와 Pod도 느슨한 결합을 맺고 있다.
+
+RS가 Pod을 생성 및 관리 하지만 소유 하지는 않는다. RS는 라벨 쿼리를 사용해 관리할 Pod집합을 식별한다.
+
+이와 유사한 분리 구조는 여러 Pod을 생성하는 RS와 이렇게 생성된 Pod 간 LoadBalancing을 하는 서비스는 서로 완전히 분리된 API 객체이다. 
+
+
+
+컨테이너 격리
+
+Pod 에 장애가 발생할 경우 상태 검사가 완료 되기 전 까지 재실행을 하지 않고 에러를 뱉고 있을 것이다.
+
+해당 상황에서 Pod 을 중지하면 새로운 Pod이 생성될것이며 중지된 Pod은 삭제되어 해당 Pod내부 로그 및 상태가 없어지는 상황이 발생한다.
+
+이런 상황에서 문제가 발생한 Pod 을 유지 하며 새로운 Pod 을 생성 하기 위해서는 Label을 수정하는 방법이 있다.
+
+Label을 수정하면 RS는 해당 Pod이 사라진것으로 인식하여 새로운 Pod을 생성할것이지만 문제가 발생한 Pod은 여전히 동작 중이므로 디버깅이 가능하다.
+
+
+
+RS 설계
+
+RS는 아키텍처 내부에서 확장 가능한 단일 마이크로서비스를 구성하기 위해 설계되었다.
+
+RS의 주요 특징 중 하나는 RS 컨트롤러가 생성한 Pod이 동일하다는 점이다.
+
+동일한 Pod들로 구성되어 있기 때문에 Replica count를 축소하여도 서비스에 영향이 없다.
+
+
+
+라벨
+
+RS는 Pod Label집합을 사용하여 클러스터의 상태를 모니터링 한다.
+
+클러스터에서 Label을 사용해 Pod목록을 필터링 하고 동작중인 Pod을 추가한다.
+
+필터링에 사용되는 Label은 RS의 sepc섹션에 정의되며 RS 동작 원리를 이해하는 데 핵심이 되는 개념이다.
+
+
+
+RS 확장
+
+명령형 확장
+
+kubectl scale app_name --replicas=4
+명령형으로 선언한 설정들은 실제 deployment 파일에 반영되지 않으니 주의.
+
+
+
+선언형 확장
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "console-game-api.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ include "console-game-api.name" . }}
+    helm.sh/chart: {{ include "console-game-api.chart" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+
+
+Autoscale
+
+CPU 기반 
+
+kubectl autoscale rs app_name --min=2 --max=5 --cpu-percent=80
+CPU 와 같은 리소스 조회, 변경 ,삭제 처리는 kubectl과 horizontalpodautoscalers 사용 줄여서 hpa라고 입력 가능
+
+
+
+RS 삭제
+
+kubectl delete rs app_name
+
+
+RS를 삭제 할 경우 RS가 관리 하는 pod도 함께 삭제된다.
+
+
+
+kubectl delete rs app_name --cascade=false
+
+
+RS만 삭제 하고 싶은 경우 --cascade 옵션을 사용할 수 있다. 
+
+
+
+요약
+
+Rs로 pod을 구성하면 자동으로 장애를 조치하는 견고한 애플리케이션을 만들 수 있는 기반 제공.
+
+애플리케이션을 확장 가능하고 정상적인 배포 패턴으로 배포 할 수 있다 .
